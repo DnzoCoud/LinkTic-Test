@@ -1,18 +1,18 @@
-package com.linktic.project.domain.models;
+package com.linktic.project.application.dto;
 
 import lombok.AllArgsConstructor;
 import lombok.Getter;
+import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 @AllArgsConstructor
+@NoArgsConstructor
 @Getter
 @Setter
-public class User {
+public class UserDTO {
     private Long id;
     private String firstName;
     private String lastName;
     private String email;
-    private String password;
-    private String salt;
-    private Role role;
+    private RoleDTO role;
 }
