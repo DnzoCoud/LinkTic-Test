@@ -5,6 +5,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
 import com.linktic.project.application.usecases.role.GetRoleById;
+import com.linktic.project.application.usecases.user.FindAllUsers;
 import com.linktic.project.application.usecases.user.StoreUser;
 import com.linktic.project.domain.services.IPasswordHashing;
 import com.linktic.project.domain.services.IUserService;
@@ -30,5 +31,10 @@ public class UserUseCaseConfig {
     @Bean
     public StoreUser storeUser() {
         return new StoreUser(userService, passwordHashing, getRoleById);
+    }
+
+    @Bean
+    public FindAllUsers findAllUsers() {
+        return new FindAllUsers(userService);
     }
 }
