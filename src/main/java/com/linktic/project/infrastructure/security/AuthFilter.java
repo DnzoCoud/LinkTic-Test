@@ -2,10 +2,10 @@ package com.linktic.project.infrastructure.security;
 
 import java.io.IOException;
 import java.util.List;
-import java.util.stream.Collectors;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.filter.OncePerRequestFilter;
@@ -32,6 +32,14 @@ public class AuthFilter extends OncePerRequestFilter {
         this.tokenService = tokenService;
     }
 
+    private String getJwtFromRequest(HttpServletRequest request) {
+        String bearerToken = request.getHeader(HEADER);
+        if (bearerToken != null && bearerToken.startsWith(PREFIX)) {
+            return bearerToken.substring(7); // Elimina el "Bearer " del token
+        }
+        return null;
+    }
+
     @Override
     protected void doFilterInternal(
             @NonNull HttpServletRequest request,
@@ -39,22 +47,16 @@ public class AuthFilter extends OncePerRequestFilter {
             @NonNull FilterChain filterChain)
             throws ServletException, IOException {
         try {
-            if (existJwtToken(request, response)) {
-                String jwtToken = request.getHeader(HEADER).replace(HEADER, "");
-                Claims claims = tokenService.validateTokenAndReturnClaims(jwtToken);
-                if (claims.get("authorities") != null) {
-                    setUpSpringAuthenticacion(claims);
-                } else {
-                    SecurityContextHolder.clearContext();
-                }
-            } else {
-                SecurityContextHolder.clearContext();
+            String token = getJwtFromRequest(request);
+            if (token != null && tokenService.validateToken(token)) {
+                Claims claims = tokenService.validateTokenAndReturnClaims(token);
+                setUpSpringAuthenticacion(claims);
             }
             filterChain.doFilter(request, response);
 
-        } catch (ExpiredJwtException | UnsupportedJwtException | MalformedJwtException e) {
+        } catch (ExpiredJwtException | UnsupportedJwtException | MalformedJwtException | IllegalArgumentException e) {
             response.setStatus(HttpServletResponse.SC_FORBIDDEN);
-            ((HttpServletResponse) response).sendError(HttpServletResponse.SC_FORBIDDEN, e.getMessage());
+            response.sendError(HttpServletResponse.SC_FORBIDDEN, "Invalid token: " + e.getMessage());
             return;
         }
     }
@@ -65,20 +67,12 @@ public class AuthFilter extends OncePerRequestFilter {
      * @param claims
      */
     private void setUpSpringAuthenticacion(Claims claims) {
-        @SuppressWarnings("unchecked")
-        List<String> authorities = (List<String>) claims.get("authorities");
-
-        UsernamePasswordAuthenticationToken auth = new UsernamePasswordAuthenticationToken(claims.getSubject(), null,
-                authorities.stream().map(SimpleGrantedAuthority::new).collect(Collectors.toList()));
-        SecurityContextHolder.getContext().setAuthentication(auth);
-    }
-
-    private boolean existJwtToken(HttpServletRequest request, HttpServletResponse res) {
-        String authenticationHeader = request.getHeader(HEADER);
-        if (authenticationHeader == null || !authenticationHeader.startsWith(PREFIX))
-            return false;
-
-        return true;
+        String username = claims.getSubject();
+        String role = claims.get("role", String.class);
+        GrantedAuthority authority = new SimpleGrantedAuthority("ROLE_" + role);
+        UsernamePasswordAuthenticationToken authentication = new UsernamePasswordAuthenticationToken(username, null,
+                List.of(authority));
+        SecurityContextHolder.getContext().setAuthentication(authentication);
     }
 
 }

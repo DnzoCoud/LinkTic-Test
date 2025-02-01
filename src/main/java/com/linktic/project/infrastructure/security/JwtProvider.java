@@ -1,8 +1,6 @@
 package com.linktic.project.infrastructure.security;
 
-import java.nio.charset.StandardCharsets;
 import java.util.Date;
-import java.util.Map;
 
 import javax.crypto.SecretKey;
 
@@ -22,19 +20,19 @@ import jakarta.annotation.PostConstruct;
 
 @Component
 public class JwtProvider implements ITokenService {
-    private static final String SECRET_KEY = "42E4E2F8C1195F44FC7F224CEBA1EC93F6746A9A3D517543638AD4B58A";
-    private static final long EXPIRATION_TIME = 86400000; // 1 día
-    private SecretKey key;
-
     @Value("${jwt.secret}")
     private String secretKey;
+
+    private SecretKey key;
+    private static final long EXPIRATION_TIME = 86400000; // 1 día
 
     @PostConstruct
     public void init() {
         if (secretKey == null || secretKey.length() < 32) {
             throw new IllegalArgumentException("La clave secreta debe tener al menos 32 caracteres.");
         }
-        this.key = Keys.hmacShaKeyFor(secretKey.getBytes(StandardCharsets.UTF_8));
+        byte[] keyBytes = Decoders.BASE64.decode(secretKey);
+        this.key = Keys.hmacShaKeyFor(keyBytes);
     }
 
     @Override
@@ -43,10 +41,26 @@ public class JwtProvider implements ITokenService {
         return buildToken(userDto);
     }
 
+    private String buildToken(final UserDTO user) {
+        String token = Jwts.builder()
+                .subject(user.getEmail())
+                .issuedAt(new Date(System.currentTimeMillis()))
+                .expiration(new Date(System.currentTimeMillis() + EXPIRATION_TIME))
+                .claim("role", user.getRole())
+                .signWith(key)
+                .compact();
+        return token;
+    }
+
+    private SecretKey getSignKey() {
+        byte[] keyBytes = Decoders.BASE64.decode(secretKey);
+        return Keys.hmacShaKeyFor(keyBytes);
+    }
+
     @Override
     public boolean validateToken(String token) {
         try {
-            Jwts.parser().verifyWith(key).build().parseSignedClaims(token).getPayload();
+            Jwts.parser().verifyWith(getSignKey()).build().parseSignedClaims(token).getPayload();
             return true;
         } catch (Exception e) {
             return false;
@@ -61,21 +75,7 @@ public class JwtProvider implements ITokenService {
     @Override
     @SuppressWarnings("unchecked")
     public Claims validateTokenAndReturnClaims(String token) {
-        return Jwts.parser().verifyWith(key).build().parseSignedClaims(token).getPayload();
+        return Jwts.parser().verifyWith(getSignKey()).build().parseSignedClaims(token).getPayload();
     }
 
-    private String buildToken(final UserDTO user) {
-        return Jwts.builder()
-                .id(user.getId().toString())
-                .claims(Map.of("name", user.getEmail()))
-                .subject(user.getEmail()).issuedAt(new Date(System.currentTimeMillis()))
-                .expiration(new Date(System.currentTimeMillis() + EXPIRATION_TIME))
-                .signWith(getSignKey())
-                .compact();
-    }
-
-    private SecretKey getSignKey() {
-        byte[] keyBytes = Decoders.BASE64.decode(SECRET_KEY);
-        return Keys.hmacShaKeyFor(keyBytes);
-    }
 }
