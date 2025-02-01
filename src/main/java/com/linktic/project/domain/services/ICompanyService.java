@@ -11,4 +11,6 @@ public interface ICompanyService {
     List<Company> findAll();
 
     Company store(Company company);
+
+    boolean existsByNit(String nit);
 }

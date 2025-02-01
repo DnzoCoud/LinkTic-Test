@@ -43,4 +43,9 @@ public class CompanyServiceImpl implements ICompanyService {
         return CompanyEntityMapper.toDomain(newCompany);
     }
 
+    @Override
+    public boolean existsByNit(String nit) {
+        return companyRepositoryJpa.existsByNit(nit);
+    }
+
 }
